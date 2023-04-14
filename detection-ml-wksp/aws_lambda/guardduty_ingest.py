@@ -54,7 +54,7 @@ def get_tuples(finding):
             if ip.endswith('.amazonaws.com'):
                 continue  # Ignore calls coming from AWS service principals
             principal = finding['resource']['accessKeyDetails']['principalId']
-            tuples.append('{},{}'.format(principal, ip))
+            tuples.append(f'{principal},{ip}')
 
     return tuples
 
@@ -124,21 +124,18 @@ def handler(event, context):
     session = boto3.session.Session()
     s3_client = session.client('s3')
 
-    tuples = []
-
     # Load the GuardDuty findings for the workshop
     findings = load_workshop_findings(s3_client, findings_input_bucket, findings_input_prefix)
-    
+
     # Process the GuardDuty findings
     for finding in findings:
         # TODO - Change to print_short_finding(finding)
         print_full_finding(finding)
-        
+
         # TODO - Uncomment next line to get tuples for each finding
         # tuples.extend(get_tuples(finding))
 
-    # Write the tuples to S3 where they can be read by the Sagemaker algorithm
-    if len(tuples) > 0:
+    if tuples := []:
         logger.info('Writing tuples to s3://%s/%s', tuples_output_bucket, tuples_output_key)
 
         s3_client.put_object(

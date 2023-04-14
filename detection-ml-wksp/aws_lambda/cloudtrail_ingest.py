@@ -34,13 +34,13 @@ def load_cloudtrail_log(s3_client, bucket, key):
     :return: list of CloudTrail records
     """
     response = s3_client.get_object(Bucket=bucket, Key=key)
-    logger.info('Loading CloudTrail log file s3://{}/{}'.format(bucket, key))
+    logger.info(f'Loading CloudTrail log file s3://{bucket}/{key}')
 
     with io.BytesIO(response['Body'].read()) as obj:
         with gzip.GzipFile(fileobj=obj) as logfile:
             records = json.load(logfile)['Records']
-            sorted_records = sorted(records, key=lambda r: r['eventTime']) 
-            logger.info('Number of records in log file: {}'.format(len(sorted_records)))
+            sorted_records = sorted(records, key=lambda r: r['eventTime'])
+            logger.info(f'Number of records in log file: {len(sorted_records)}')
             return sorted_records
     
     
@@ -90,33 +90,30 @@ def handler(event, context):
     # Create a Boto3 session and S3 client
     session = boto3.session.Session()
     s3_client = session.client('s3')
-    
+
     # Get a list of the CloudTrail log files for the workshop
-    log_files = [(bucket, key) for bucket, key in get_workshop_log_files(
-        s3_client, logs_input_bucket, logs_input_prefix
-    )]
-    
-    tuples = []
-    
+    log_files = list(
+        get_workshop_log_files(s3_client, logs_input_bucket, logs_input_prefix)
+    )
+
     for bucket, key in log_files:
         # Load the records from each CloudTrail log file
         records = load_cloudtrail_log(s3_client, bucket, key)
-        
+
         # Process the CloudTrail records
         for record in records:
             if record['sourceIPAddress'].endswith('.amazonaws.com'):
                 continue  # Ignore calls coming from AWS service principals
             print_short_record(record)
-            
+
             # TODO - Uncomment next lines to get tuples for each finding
             # principal, ip = get_tuple(record)
             # tuples.append('{},{}'.format(principal, ip))
-    
-    # Write the tuples to S3 where they can be read by the Sagemaker algorithm
-    if len(tuples) > 0:
+
+    if tuples := []:
         logger.info('Writing tuples to s3://%s/%s', 
             tuples_output_bucket, tuples_output_key)
-    
+
         s3_client.put_object(
             Bucket=tuples_output_bucket,
             Key=tuples_output_key,
